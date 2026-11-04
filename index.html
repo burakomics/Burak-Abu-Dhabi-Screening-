@@ -578,13 +578,71 @@ function runHS(p,i,h){const nodes=h.ch.map(k=>({k,g:get(p,i,k)}));const av=nodes
   return {nodes,ev:av.length,ab,c:av.length<2||first.v==null||first.s==='ac'?'na':!fa?'ok':ab>=2?'bad':'warn'};}
 
 /* ======================= SUMMARY (Burak clinical risk) ======================= */
+
+/* ======================= QATAR EVIDENCE (QBRI Metabolic Organ Cross-Talk Symposium) ======================= */
+const EV={
+ ALAKL:{a:'Al Akl et al., QBRI',t:'Tracing metabolic changes toward type 2 diabetes',f:'About 22% of adults in Qatar have prediabetes, and 5–10% progress each year'},
+ ALBAR:{a:'Albarghouthi et al., QU',t:'IBD and cardiometabolic outcomes in Qatar',f:'Uncontrolled diabetes defined as HbA1c above 7%'},
+ FARHAN:{a:'Farhan & Babu, QU',t:'Musculoskeletal health and metabolic syndrome (Qatar Biobank)',f:'Metabolic syndrome as 3 or more of 5 criteria'},
+ ELHAG:{a:'Elhag et al., QU',t:'Sex-specific MASLD signatures by FLI and FIB-4 (Qatari population)',f:'FLI and FIB-4 separate low- and high-risk fatty liver'},
+ TOOR:{a:'Toor et al., HBKU / QBRI',t:'LDL-C genetic burden and diabetes status',f:'Very high LDL with normal sugar markers is a different pattern from diabetic dyslipidaemia'},
+ BADER:{a:'Bader et al., QU / HMC',t:'Sesn2 and diabetic kidney disease (Qatari cohort)',f:'TyG index was among the strongest predictors of diabetic kidney disease'},
+ ALIYU:{a:'Aliyu et al., HBKU / QBRI',t:'Genetic uncoupling of adiposity from type 2 diabetes risk',f:'High BMI does not always mean high metabolic risk'},
+ MESLEH:{a:'Mesleh et al., QBRI',t:'Diabetes-dependent circulating proteomics of coronary heart disease',f:'Heart disease signals were amplified when diabetes was also present'},
+ GHANIM:{a:'Ghanim et al., QU',t:'IL-6 in diabetes-associated cardiovascular complications',f:'Inflammation drives vascular complications of diabetes'},
+ ARSHAD:{a:'Arshad et al., QU',t:'Albuminuria and liver stiffness in adults with diabetes',f:'Kidney damage in diabetes came with 12.3 points more liver stiffness, even with normal eGFR'},
+ SROUR:{a:'Srour, Al-Thani et al., HBKU / QBRI',t:'Type 2 diabetes-like subtypes in gestational diabetes',f:'Diabetes subtypes from age, BMI, HbA1c and insulin indices'},
+ SIDANI:{a:'Sidani et al., QU',t:'Obesity surgery for diabetes management in the GCC',f:'Use one standard definition of diabetes remission'}
+};
+const COHEV={'PREDIABETES':['ALAKL'],'TYPE 2 DIABETES PATTERN':['ALBAR'],'METABOLIC SYNDROME':['FARHAN'],'LIVER FIBROSIS RISK':['ELHAG'],'ATHEROGENIC DYSLIPIDAEMIA':['TOOR'],'INHERITED HIGH CHOLESTEROL PATTERN':['TOOR'],'KIDNEY DECLINE':['BADER'],'OBESITY WITH METABOLIC RISK':['ALIYU']};
+const SENTEV={'METABOLIC SENTINEL':['ALAKL','BADER'],'LIVER SENTINEL':['ELHAG'],'KIDNEY SENTINEL':['BADER'],'LIPID SENTINEL':['TOOR'],'INFLAMMATION SENTINEL':['GHANIM']};
+const HSEV={'SUGAR → CARDIAC':['MESLEH'],'KIDNEY → LIVER':['ARSHAD'],'INFLAMMATION → CARDIAC':['GHANIM'],'SUGAR → LIVER':['ELHAG']};
+const DEV={TYG:['BADER','ALIYU'],FIB4:['ELHAG']};
+const evTip=ids=>esc(ids.map(i=>EV[i].a+': '+EV[i].t+'. '+EV[i].f+'.').join('\n'));
+const evTag=ids=>ids&&ids.length?`<span class="evd" title="${evTip(ids)}">Qatar evidence</span>`:'';
+const evSide=ids=>ids&&ids.length?`<span class="evs" tabindex="0" title="${evTip(ids)}" aria-label="Qatar evidence: ${evTip(ids)}">ⓘ Qatar evidence</span>`:'';
+document.head.insertAdjacentHTML('beforeend',`<style>
+.evd{display:inline-block;font-size:10.5px;font-weight:600;color:#0f766e;margin-left:8px;cursor:help;white-space:nowrap;vertical-align:middle;border-bottom:1px dotted #0f766e}
+.evs{position:absolute;top:10px;right:12px;font-size:10.5px;font-weight:600;color:#5f8f8a;cursor:help;white-space:nowrap}
+.evs:hover,.evs:focus{color:#0f766e;outline:none}
+.coh{position:relative}.prompts .a{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.prompts{background:#eff8ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.prompts h3{margin:0;font-size:12.5px;letter-spacing:.04em;color:#1d4ed8}
+.prompts .a{background:#fff;border:1px solid #dbeafe;border-radius:8px;padding:7px 12px;font-size:13px}
+</style>`);
+function a1cSlope(p,ri){const s=p.rep.slice(0,ri+1).filter(r=>r.v.A1C!=null);if(s.length<2)return null;return (s.at(-1).v.A1C-s[0].v.A1C)/(yrs(s[0].d,s.at(-1).d)||1);}
+function prompts(p,i,sm){const out=[];const a=get(p,i,'A1C'),sl=a1cSlope(p,i);
+  if(a.v!=null&&a.v>=5.7&&a.v<6.5&&sl!=null&&sl>0)out.push({t:`HbA1c ${fmt(a.v)}% is rising inside the prediabetes range (${sgn(sl)} % points per year). Higher priority: 5–10% of people with prediabetes progress to diabetes each year.`,ev:['ALAKL']});
+  const e=get(p,i,'EGFR'),cr=get(p,i,'CREA'),es=egfrSlope(p,i),f=get(p,i,'FIB4');
+  if(a.v!=null&&a.v>=6.5&&((e.v!=null&&e.v<90&&es!=null&&es<=-3)||flagged(cr.s)||(e.v!=null&&e.v<60)))out.push({t:`Diabetes range with ${e.v!=null&&e.v<60?`reduced kidney function (eGFR ${fmt(e.v)})`:`a kidney change while eGFR is still ${fmt(e.v)}`}: consider a liver check${f.v!=null?` (FIB-4 ${fmt(f.v)})`:''}. A urine albumin test (UACR) would sharpen this link.`,ev:['ARSHAD']});
+  const ih=sm.C.find(x=>x.c.n==='INHERITED HIGH CHOLESTEROL PATTERN');if(ih&&ih.pct>=67)out.push({t:`LDL ${fmt(get(p,i,'LDL').v)} mmol/L with normal sugar markers: read as a possible inherited cholesterol pattern, separate from diabetic dyslipidaemia.`,ev:['TOOR']});
+  const b=get(p,i,'BMI'),ob=sm.C.find(x=>x.c.n==='OBESITY WITH METABOLIC RISK');if(b.v!=null&&b.v>=30&&(!ob||ob.pct<50))out.push({t:`BMI ${fmt(b.v)} with healthy metabolic markers: not flagged on BMI alone.`,ev:['ALIYU']});
+  if(sm.amp)out.push({t:'Sugar and cardiac lines are both out of range together: the combined signal is amplified in the clinical risk score (+2).',ev:['MESLEH']});
+  return out;}
 function summary(p,i){const S=SENT.map(s=>({s,o:runSent(p,i,s)}));const C=cohorts(p,i);const H=HS.map(h=>({h,o:runHS(p,i,h)}));
   const labs=Object.keys(M).map(k=>({k,g:get(p,i,k)})).filter(x=>x.g.v!=null);const flg=labs.filter(x=>flagged(x.g.s));
   const fires=S.filter(x=>x.o.state==='fire').length,chi=C.filter(x=>x.pct>=67).length,acute=get(p,i,'HSCRP').s==='ac';
-  const sc=fires*3+chi*2+flg.filter(x=>M[x.k].c!=='VITALS'&&(x.g.s==='hi'||x.g.s==='lo')).length;
+  const amp=H.find(x=>x.h.n==='SUGAR → CARDIAC').o.c==='bad';
+  const sc=fires*3+chi*2+flg.filter(x=>M[x.k].c!=='VITALS'&&(x.g.s==='hi'||x.g.s==='lo')).length+(amp?2:0);
   const lvl=sc>=16?'Critical':sc>=9?'High':sc>=4||acute?'Moderate':'Low';
   const alerts=[];if(acute)alerts.push(`hs-CRP ${fmt(get(p,i,'HSCRP').v)} mg/L is in the acute range. Repeat test advised.`);
-  return {S,C,H,labs,flg,fires,chi,acute,sc,lvl,alerts};}
+  const sm={S,C,H,labs,flg,fires,chi,acute,sc,lvl,alerts,amp};sm.prompts=prompts(p,i,sm);return sm;}
+const EVLIB=[
+ ['ALAKL','Prediabetes cohort; metabolic sentinel; prediabetes drift prompt','Live'],
+ ['ALBAR','Uncontrolled diabetes (HbA1c above 7%)','Live'],
+ ['FARHAN','Metabolic syndrome cohort (3 of 5)','Live · waist not collected'],
+ ['ELHAG','FIB-4 liver score and liver fibrosis cohort','Live · FLI needs GGT and waist'],
+ ['TOOR','Inherited high cholesterol and atherogenic cohorts; inherited-pattern prompt','Live'],
+ ['BADER','TyG index in the metabolic and kidney sentinels','Live · C-peptide and magnesium need extra tests'],
+ ['ALIYU','Obesity with metabolic risk; not flagged on BMI alone','Live'],
+ ['MESLEH','Amplified sugar + cardiac signal in the clinical risk score','Live'],
+ ['GHANIM','Inflammation → cardiac link; inflammation sentinel','Live · IL-6 not in IFHAS'],
+ ['ARSHAD','Kidney → liver prompt in diabetes','Partial · uses eGFR; UACR would sharpen it'],
+ ['SROUR','Type 2 diabetes subtypes','Needs fasting insulin or C-peptide'],
+ ['SIDANI','Diabetes remission tracking','Needs treatment events']];
+function evidenceLib(){return `<div class="card" style="padding:0"><div class="mp-top"><b>QATAR EVIDENCE IN THIS WORKSPACE</b><span class="small">Posters from the QBRI Metabolic Organ Cross-Talk Symposium, mostly on Qatari cohorts</span></div>
+  <div class="tablewrap"><table><thead><tr><th>Study</th><th>Finding</th><th>Where it is used in Burak</th><th>Status</th></tr></thead><tbody>${EVLIB.map(([id,w,s])=>`<tr><td style="white-space:normal;min-width:200px"><b>${EV[id].a}</b><div class="small">${EV[id].t}</div></td><td style="white-space:normal">${EV[id].f}</td><td style="white-space:normal">${w}</td><td><span class="chip ${s.startsWith('Live')?'ok':s.startsWith('Partial')?'warn':''}" style="white-space:normal">${s}</span></td></tr>`).join('')}</tbody></table></div>
+  <div class="tfoot">Most posters are cross-sectional and some are unpublished. Thresholds stay illustrative until clinical sign-off.</div></div>`;}
 
 /* ======================= STATE & SHELL ======================= */
 document.head.insertAdjacentHTML('beforeend',`<style>
@@ -600,8 +658,8 @@ td{padding:11px 12px}th{padding:10px 12px}
 const state={view:'dashboard',pi:0,at:{},tab:'marker',cat:null,only:false,vel:null,velAll:false,plist:'',band:'All',cohAll:false};
 const atOf=i=>state.at[i]??P[i].rep.length-1;
 const riskChip=l=>`<span class="chip ${l==='Critical'||l==='High'?'bad':l==='Moderate'?'warn':'ok'}">${l}</span>`;
-const ICON={dash:'<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>',up:'<path d="M8 11V3M4.5 6.5 8 3l3.5 3.5M3 13h10"/>',pts:'<circle cx="6" cy="5" r="2.5"/><path d="M1.5 14c.6-2.6 2.3-4 4.5-4s3.9 1.4 4.5 4M11 3.5a2 2 0 0 1 0 4M12.5 10c1.2.5 2 1.8 2.3 4"/>',rep:'<rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6 10V8M8 10V6M10 10V7"/>',pulse:'<path d="M1.5 8h3l2-4 3 8 2-4h3"/>',gear:'<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'};
-const NAV=[['OVERVIEW',[['dashboard','Dashboard','dash']]],['DATA & PATIENTS',[['ingest','Data ingestion','up'],['patients','Patients','pts']]],['CLINICAL INTELLIGENCE',[['reports','Clinical reports','rep']]],['POPULATION',[['pop','Population health','pulse']]],['ADMINISTRATION',[['settings','Settings','gear']]]];
+const ICON={dash:'<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>',up:'<path d="M8 11V3M4.5 6.5 8 3l3.5 3.5M3 13h10"/>',pts:'<circle cx="6" cy="5" r="2.5"/><path d="M1.5 14c.6-2.6 2.3-4 4.5-4s3.9 1.4 4.5 4M11 3.5a2 2 0 0 1 0 4M12.5 10c1.2.5 2 1.8 2.3 4"/>',rep:'<rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6 10V8M8 10V6M10 10V7"/>',pulse:'<path d="M1.5 8h3l2-4 3 8 2-4h3"/>',bulb:'<path d="M6 12h4M6.5 14h3M8 2a4 4 0 0 0-2.4 7.2c.5.4.9 1 .9 1.8h3c0-.8.4-1.4.9-1.8A4 4 0 0 0 8 2z"/>',gear:'<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'};
+const NAV=[['OVERVIEW',[['dashboard','Dashboard','dash']]],['DATA & PATIENTS',[['ingest','Data ingestion','up'],['patients','Patients','pts']]],['CLINICAL INTELLIGENCE',[['reports','Clinical reports','rep']]],['POPULATION',[['pop','Population health','pulse']]],['ADMINISTRATION',[['evidence','Qatar evidence','bulb'],['settings','Settings','gear']]]];
 function renderSide(){const cur=state.view==='analysis'?'patients':state.view;
   $('side').innerHTML=`<div class="brand"><b>Burakomics</b><span>Health Analytics · POC</span></div>`+NAV.map(([h,items])=>`<div class="navgrp"><h4>${h}</h4>${items.map(([id,l,ic])=>`<button class="nav" data-nav="${id}" aria-current="${cur===id?'page':'false'}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${ICON[ic]}</svg>${l}</button>`).join('')}</div>`).join('')+`<div class="me"><i>SA</i><div>Super Administrator<small>Superadmin</small></div></div>`;}
 const ALL=()=>P.map((p,i)=>({p,i,ri:p.rep.length-1,sm:summary(p,p.rep.length-1)}));
@@ -731,14 +789,6 @@ function renderPop(){const A=ALL();const dists=[...new Set(P.map(p=>p.dist))];co
 
 
 /* ======================= PATIENTS ======================= */
-function renderPatients(){const q=state.plist.toLowerCase();
-  const list=ALL().filter(x=>(state.band==='All'||bandOf(x.p.age)===state.band)&&(!q||x.p.id.toLowerCase().includes(q)||x.p.dist.toLowerCase().includes(q)));
-  return `<div class="ahead"><input class="sel grow" id="pq" placeholder="Search patients by ID or district" value="${esc(state.plist)}" aria-label="Search patients">
-   <select class="sel" id="pb" aria-label="Age group">${['All','18–39','40–64','65–75'].map(o=>`<option ${state.band===o?'selected':''} value="${o}">${o==='All'?'All ages':'Age '+o}</option>`).join('')}</select></div>
-  <div class="card" style="padding:0"><div class="mp-top"><b>PATIENT LIST</b><span class="small">${list.length} of ${P.length} patients</span></div>
-  <div class="tablewrap"><table class="ptab"><thead><tr><th>S.No</th><th>Patient ID</th><th>Age / Sex</th><th>District</th><th>Segment</th><th>Clinical risk</th><th>Reports</th><th>Last report</th></tr></thead><tbody>
-  ${list.map((x,n)=>`<tr class="rowlink" tabindex="0" data-open="${x.i}"><td>${String(n+1).padStart(2,'0')}</td><td><b>${x.p.id}</b></td><td>${x.p.age} / ${x.p.sex}</td><td>${x.p.dist}</td><td>${segOf(x.sm)}</td><td>${riskChip(x.sm.lvl)}</td><td>${x.p.rep.length}</td><td>${x.p.rep.at(-1).d}</td></tr>`).join('')}</tbody></table></div></div>`;}
-
 /* ======================= ANALYSIS ======================= */
 const TABS=[['marker','Marker Profile'],['inflam','Inflammatory Index'],['sentinel','Sentinel Score'],['cohort','Disease Cohort'],['handshake','System Handshake'],['velocity','Velocity Analysis'],['report','Report Center']];
 function sentCard(p,ri,s,o){const c=o.state==='fire'?'':o.state==='watch'?'warn':'ok';
@@ -746,7 +796,7 @@ function sentCard(p,ri,s,o){const c=o.state==='fire'?'':o.state==='watch'?'warn'
     if(x.ok===null){box=`<span class="svb nx">${g.s==='ac'?'Repeat test':'Not tested'}</span>`;}
     else{st=x.ok?'<span class="st met">MET</span>':'<span class="st ok">OK</span>';box=`<span class="svb ${x.ok?'bad':'ok'}">${fmt(g.v)}<small>${u}</small></span>`;}
     return `<div class="srow"><div><span class="mname">${nameOf(x.k)}</span>${st}<div class="d">${x.l}</div></div>${box}</div>`;}).join('');
-  return `<div class="sent ${c}"><span class="lab">${s.n}</span><div class="sbox"><b>${o.state==='fire'?s.st+' DETECTED':o.state==='watch'?s.st+' · WATCH':o.state==='inc'?'NOT ENOUGH DATA':'NO '+s.st}</b>${s.an}<span style="text-transform:none">${o.met} of ${o.ev} out of line</span></div><div class="srows">${rows}</div></div>`;}
+  return `<div class="sent ${c}"><span class="lab">${s.n}</span>${evSide(SENTEV[s.n])}<div class="sbox"><b>${o.state==='fire'?s.st+' DETECTED':o.state==='watch'?s.st+' · WATCH':o.state==='inc'?'NOT ENOUGH DATA':'NO '+s.st}</b>${s.an}<span style="text-transform:none">${o.met} of ${o.ev} out of line</span></div><div class="srows">${rows}</div></div>`;}
 function tSentinel(p,ri,sm){const rank={fire:0,watch:1,inc:3,clear:2};const all=[...sm.S].sort((a,b)=>rank[a.o.state]-rank[b.o.state]);
   const open=all.filter(x=>x.o.state==='fire'||x.o.state==='watch'),rest=all.filter(x=>x.o.state==='clear'||x.o.state==='inc');
   return `<div class="tabhint">${all.filter(x=>x.o.state==='fire').length} detected · ${all.filter(x=>x.o.state==='watch').length} on watch. Rule: 2 of 3 markers out of line = pattern.</div>
@@ -778,6 +828,7 @@ function tVelocity(p,ri,sm){const reps=p.rep.slice(0,ri+1);
   return `${strip}
   <div class="card"><div class="sechead"><h2>${M[k].full} over ${cur.s.length} reports</h2><select class="sel" id="velsel" aria-label="Marker">${keys.map(x=>`<option value="${x}" ${x===k?'selected':''}>${M[x].full}</option>`).join('')}</select></div>
    <div class="small" style="margin:4px 0 6px">Change: <b>${sgn(cur.py)} ${M[k].u} per year</b>. Green band = normal range.</div>${chart(p,ri,k)}</div>
+  ${(()=>{const pr=sm.prompts.find(x=>x.ev[0]==='ALAKL');return pr?`<div class="ostrip REVIEW"><span class="vp REVIEW">Priority</span><span class="msg">${esc(pr.t)}</span></div>`:'';})()}
   <div class="card" style="padding:0"><div class="mp-top"><b>REPORT HISTORY</b><span class="small">Markers that changed 5% or more, or are out of range · click a row to chart it</span><button class="linkbtn" id="velMore" style="margin-left:auto">${state.velAll?'Show changed only':'Show all markers'}</button></div>
    <div class="tablewrap" style="max-height:520px"><table class="fs"><thead><tr><th>Marker</th>${reps.map((r,i)=>`<th class="rh ${i===ri?'cur':''}">R${i+1}<small>${r.d}</small></th>`).join('')}<th class="num">Since R1</th><th>Trend</th></tr></thead><tbody>
    ${shown.map(v=>`<tr class="rowlink ${v.k===k?'sel':''}" data-vel="${v.k}"><td class="mkc"><b>${M[v.k].n}</b><small>${M[v.k].u}</small></td>
@@ -872,17 +923,17 @@ function sysStats(p,ri){return CATS.filter(c=>c[0]!=='VITALS').map(([c,n])=>{con
 function tCohort(p,ri,sm){const list=[...sm.C].filter(x=>x.pct>0).sort((a,b)=>b.pct-a.pct);const main=list.filter(x=>x.pct>=50),low=list.filter(x=>x.pct<50);const shown=state.cohAll?list:main;
   const bc={hi:'#dc2626',md:'#d4a10a',lo:'#94a3b8'};
   return `<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="sechead"><span class="small">${main.length} cohort(s) at 50% match or above</span></div>
-   ${shown.map(x=>{const r=riskOfPct(x.pct);return `<div class="coh ${r}"><div style="flex:1;min-width:0"><span class="nm">${x.c.n}</span><span class="mk2">${x.c.mk}</span><div class="mbar"><b style="width:${x.pct}%;background:${bc[r]}"></b></div><div class="chk">${x.rs.filter(c=>c.ok!==null).map(c=>`<span class="${c.ok?'y':'n'}">${c.ok?'✓':'·'} ${c.l}</span>`).join('')}</div></div><div class="pct"><span style="font-size:22px;display:block">${x.pct}%</span>MATCH<br><span class="rb ${r}">${r==='hi'?'High Risk':r==='md'?'Medium Risk':'Low Risk'}</span></div></div>`;}).join('')||'<p class="small">No cohort at 50% match or above.</p>'}
+   ${shown.map(x=>{const r=riskOfPct(x.pct);return `<div class="coh ${r}">${evSide(COHEV[x.c.n])}<div style="flex:1;min-width:0"><span class="nm">${x.c.n}</span><span class="mk2">${x.c.mk}</span><div class="mbar"><b style="width:${x.pct}%;background:${bc[r]}"></b></div><div class="chk">${x.rs.filter(c=>c.ok!==null).map(c=>`<span class="${c.ok?'y':'n'}">${c.ok?'✓':'·'} ${c.l}</span>`).join('')}</div></div><div class="pct"><span style="font-size:22px;display:block">${x.pct}%</span>MATCH<br><span class="rb ${r}">${r==='hi'?'High Risk':r==='md'?'Medium Risk':'Low Risk'}</span></div></div>`;}).join('')||'<p class="small">No cohort at 50% match or above.</p>'}
    ${low.length?`<button class="linkbtn" id="cohMore">${state.cohAll?'Hide':'Show'} ${low.length} lower match${low.length>1?'es':''}</button>`:''}</div>`;}
 
 function tHandshake(p,ri,sm){const r={bad:0,warn:1,ok:2,na:3};const H=[...sm.H].filter(x=>x.o.c!=='na').sort((a,b)=>r[a.o.c]-r[b.o.c]);
   return `<div class="tabhint">${H.filter(x=>x.o.c==='bad').length} red · ${H.filter(x=>x.o.c==='warn').length} amber · ${H.filter(x=>x.o.c==='ok').length} green. Red handshakes first. A link turns red when its first marker and at least one other are out of range.</div>
-  <div>${H.map(({h,o})=>`<div class="hs ${o.c}"><span class="tag">${h.n}</span><div class="chain">${o.nodes.filter(n=>n.g.v!=null).map((n,i)=>(i?'<span class="ar" aria-hidden="true">›</span>':'')+`<span class="hsn ${flagged(n.g.s)?'bad':'ok'}">${nameOf(n.k)} ${fmt(n.g.v)}</span>`).join('')}</div><p>${esc(h.note)}</p></div>`).join('')}</div>`;}
+  <div>${H.map(({h,o})=>`<div class="hs ${o.c}"><span class="tag">${h.n}</span>${evSide(HSEV[h.n])}<div class="chain">${o.nodes.filter(n=>n.g.v!=null).map((n,i)=>(i?'<span class="ar" aria-hidden="true">›</span>':'')+`<span class="hsn ${flagged(n.g.s)?'bad':'ok'}">${nameOf(n.k)} ${fmt(n.g.v)}</span>`).join('')}</div><p>${esc(h.note)}</p></div>`).join('')}</div>`;}
 
 function tReport(p,ri,sm){let n=1;const sec=(c,t,b)=>`<div class="rsec ${c}"><h3>${n++}. ${t}</h3><div class="b">${b}</div></div>`;
   const coh=sm.C.filter(x=>x.pct>=67).sort((a,b)=>b.pct-a.pct),fired=sm.S.filter(x=>x.o.state==='fire'),redH=sm.H.filter(x=>x.o.c==='bad');
   const out=sm.flg.filter(x=>M[x.k].c!=='VITALS');const sys=sysStats(p,ri);
-  const kf=[...sm.alerts.map(a=>['r','ALERT','#dc2626',a]),...fired.map(x=>['r','SENTINEL','#ef4444',`${x.s.n.replace(' SENTINEL','').toLowerCase().replace(/^./,c=>c.toUpperCase())}: ${x.o.met} of ${x.o.ev} markers out of line`]),...coh.map(x=>['a','COHORT','#d97706',`${scase(x.c.n)}: ${x.pct}% match`]),...redH.slice(0,3).map(x=>['b','LINK','#2563eb',`${x.h.n}: ${x.o.nodes.filter(nn=>nn.g.v!=null).map(nn=>nameOf(nn.k)+' '+fmt(nn.g.v)).join(' · ')}`])];
+  const kf=[...sm.alerts.map(a=>['r','ALERT','#dc2626',a]),...fired.map(x=>['r','SENTINEL','#ef4444',`${x.s.n.replace(' SENTINEL','').toLowerCase().replace(/^./,c=>c.toUpperCase())}: ${x.o.met} of ${x.o.ev} markers out of line`]),...coh.map(x=>['a','COHORT','#d97706',`${scase(x.c.n)}: ${x.pct}% match`]),...sm.prompts.map(x=>['b','PROMPT','#0f766e',x.t]),...redH.slice(0,3).map(x=>['b','LINK','#2563eb',`${x.h.n}: ${x.o.nodes.filter(nn=>nn.g.v!=null).map(nn=>nameOf(nn.k)+' '+fmt(nn.g.v)).join(' · ')}`])];
   const sc=['TYG','FIB4','NONHDL','TGHDL','PLR'].map(k=>({k,g:get(p,ri,k)})).filter(x=>x.g.v!=null);
   const reps=p.rep.slice(0,ri+1);const ch=reps.length<2?[]:Object.keys(M).filter(k=>!M[k].life&&M[k].c!=='VITALS').map(k=>{const s=reps.map(r=>r.v[k]).filter(v=>v!=null);return s.length<2?null:{k,s,d:(s.at(-1)-s[0])/s[0]*100};}).filter(Boolean).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d)).slice(0,5);
   return `<div class="rep"><div class="rephd"><button class="printbtn" id="printBtn">⎙ Print / save PDF</button><h2>COMPREHENSIVE INTEGRATIVE HEALTH REPORT</h2><div class="p">Burakomics Health Analytics — Preventive screening</div>
@@ -893,6 +944,7 @@ function tReport(p,ri,sm){let n=1;const sec=(c,t,b)=>`<div class="rsec ${c}"><h3
    ${sec('s2','MARKERS OUT OF RANGE',`<div class="tablewrap"><table class="mt"><thead><tr><th>Marker</th><th>Result</th><th>Status</th><th>Where it sits</th><th>Normal range</th></tr></thead><tbody>${out.map(x=>`<tr><td><b>${M[x.k].full}</b><div class="small">${catName(M[x.k].c)}</div></td><td><span class="bigv">${fmt(x.g.v)}<small>${M[x.k].u}</small></span></td><td>${stt(x.g.s)}</td><td>${gauge(M[x.k].t,x.g.v)}</td><td class="small">${rangeTxt(M[x.k].t)}</td></tr>`).join('')||'<tr><td colspan="5" class="small">All markers within range.</td></tr>'}</tbody></table></div>`)}
    ${sec('s3','CALCULATED SCORES',sc.length?`<div class="scs">${sc.map(x=>{const c=x.g.s==='ok'?['#f0fdf4','#bbf7d0','#15803d']:x.g.s==='md'?['#fffbeb','#fde68a','#a16207']:['#fff1f2','#fecdd3','#be123c'];return `<div style="background:${c[0]};border-color:${c[1]};color:${c[2]}"><span>${D[x.k].n}</span><b>${fmt(x.g.v)}</b><span>${word(x.g.s)}</span></div>`;}).join('')}</div>`:'Not available for this age group.')}
    ${sec('s5','CHANGES SINCE FIRST SCREENING',ch.length?`<div class="tablewrap"><table><thead><tr><th>Marker</th><th>First</th><th>Now</th><th class="num">Change</th><th>Trend</th></tr></thead><tbody>${ch.map(x=>`<tr><td><b>${M[x.k].full}</b></td><td>${fmt(x.s[0])}</td><td><b>${fmt(x.s.at(-1))}</b> <span class="small">${M[x.k].u}</span></td><td class="num ${Math.abs(x.d)<5?'flat':x.d>0?'up':'down'}">${x.d>0?'↑':'↓'} ${sgn(x.d)}%</td><td>${spark(x.s)}</td></tr>`).join('')}</tbody></table></div>`:'First screening: this report is the baseline.')}
+   ${(()=>{const ids=[...new Set([...sm.prompts.flatMap(x=>x.ev),...fired.flatMap(x=>SENTEV[x.s.n]||[]),...coh.flatMap(x=>COHEV[x.c.n]||[])])];return ids.length?sec('s7','QATAR EVIDENCE BEHIND THESE FINDINGS',`<ul style="margin:0;padding-left:18px">${ids.map(i=>`<li><b>${EV[i].a}</b>: ${EV[i].t}. <span class="small">${EV[i].f}.</span></li>`).join('')}</ul>`):'';})()}
    <p class="small" style="margin:6px 20px 16px">Burak flags and explains results for clinical review. It does not diagnose or recommend treatment. Calculated-score thresholds are illustrative until clinically signed off.</p></div>`;}
 
 function renderReports(){const A=ALL().sort((a,b)=>b.sm.sc-a.sm.sc);
@@ -949,6 +1001,7 @@ function renderAnalysis(){const p=P[state.pi],ri=atOf(state.pi),sm=summary(p,ri)
    <div class="card"><div class="eb">◌ SCDI burden</div><div class="bigger">${bd.ratio>0.45?'High':bd.ratio>0.2?'Moderate':'Low'}</div><div class="small" style="font-size:11px">Marker ${fmt(bd.mean)} &nbsp; Ratio ${fmt(bd.ratio)}</div><div class="chips" style="margin-top:6px">${top.slice(0,3).map(t=>`<span class="chip blue">${catName(t[0])}</span>`).join('')}</div></div>
    <div class="card"><div class="eb">⚠ Clinical burden</div><div class="bigger">${cb}</div><div class="small" style="font-size:11px">${bd.ab.length} of ${bd.ms.length} markers out of range</div><ul class="blist">${bd.worst.map(w=>`<li>${w.g.s==='lo'?'Low':w.g.s==='md'?'Borderline':'Elevated'} ${M[w.k].full}</li>`).join('')}</ul></div></div>
   ${sm.alerts.length?`<div class="alerts"><h3>⚠ HARD ALERTS (${sm.alerts.length})</h3>${sm.alerts.map(a=>`<div class="a">${esc(a)}</div>`).join('')}</div>`:''}
+  ${sm.prompts.length?`<div class="prompts"><h3>ℹ CLINICAL PROMPTS (${sm.prompts.length})</h3>${sm.prompts.map(x=>`<div class="a">${esc(x.t)}${evTag(x.ev)}</div>`).join('')}</div>`:''}
   <div style="display:flex;flex-direction:column;gap:16px">${({marker:tMarker,inflam:tInflam,sentinel:tSentinel,cohort:tCohort,handshake:tHandshake,velocity:tVelocity,report:tReport})[state.tab](p,ri,sm)}</div>`;}
 
 function lineInsight(p,ri,sm,c){const ls=lineScdi(p,ri,c);const keys=Object.keys(M).filter(k=>M[k].c===c);
@@ -994,7 +1047,7 @@ function tInflam(p,ri,sm){const L=k=>get(p,ri,k);const c=L('HSCRP');
     const s=v<=hi?'ok':v<=hi*1.5?'warn':'bad';return `<div class="cidx ${s}"><div class="row"><b style="font-size:13px">${n}</b><span class="badge ${s}">${s==='ok'?'OPTIMAL':s==='warn'?'WARNING':'CRITICAL'}</span></div><div class="num">${fmt(v)}</div><div class="grad"><i style="left:${Math.max(2,Math.min(98,v/(hi*2)*100))}%"></i></div><div class="formula">${f}</div><div class="formula">${why}</div></div>`;};
   const calc=k=>{const g=L(k),d=D[k];if(g.v==null)return '';const s=g.s==='ok'?'ok':g.s==='md'?'warn':'bad';
     const sub={TYG:`ln(${fmt(L('TG').v*88.57)} × ${fmt(L('GLU').v*18.016)} ÷ 2)`,FIB4:`${ageAt(p,ri)} × ${fmt(L('AST').v)} ÷ (${fmt(L('PLT').v)} × √${fmt(L('ALT').v)})`,NONHDL:`${fmt(L('TC').v)} − ${fmt(L('HDL').v)}`,TGHDL:`${fmt(L('TG').v)} ÷ ${fmt(L('HDL').v)}`}[k];
-    return `<div class="cidx ${s}"><div class="row"><b style="font-size:13px">${d.n}</b><span class="badge ${s}">${s==='ok'?'OPTIMAL':s==='warn'?'WARNING':'CRITICAL'}</span></div><div class="num">${fmt(g.v)}</div><div class="formula">${d.n.split(' (')[0]} = ${sub} = ${fmt(g.v)}</div><div class="formula">${d.why.replace('. Not valid under age 35','')}</div></div>`;};
+    return `<div class="cidx ${s}" style="position:relative;padding-bottom:26px">${DEV[k]?evSide(DEV[k]).replace('top:10px','').replace('class="evs"','class="evs" style="top:auto;bottom:8px"'):''}<div class="row"><b style="font-size:13px">${d.n}</b><span class="badge ${s}">${s==='ok'?'OPTIMAL':s==='warn'?'WARNING':'CRITICAL'}</span></div><div class="num">${fmt(g.v)}</div><div class="formula">${d.n.split(' (')[0]} = ${sub} = ${fmt(g.v)}</div><div class="formula">${d.why.replace('. Not valid under age 35','')}</div></div>`;};
   const groups={'CELLULAR MARKERS':['WBC','LYMPH','PLT'],'SYSTEMIC INFLAMMATION':['HSCRP','ALB'],'INFLAMMATION RATIO':['PLR']};
   const all=state.inf&&groups[state.inf]?groups[state.inf]:Object.values(groups).flat();
   const metab=['TYG','FIB4','NONHDL','TGHDL'].map(calc).join('');
@@ -1012,9 +1065,262 @@ function tInflam(p,ri,sm){const L=k=>get(p,ri,k);const c=L('HSCRP');
    <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Marker</th><th>Value</th><th>Unit</th><th>Reference</th><th>SCDI</th></tr></thead><tbody>${all.map(k=>({k,g:L(k)})).filter(x=>x.g.v!=null).sort((a,b)=>flagged(b.g.s)-flagged(a.g.s)).map(x=>`<tr><td>${M[x.k]?M[x.k].full:D[x.k].n}</td><td class="vg ${flagged(x.g.s)?'bad':'ok'}">${fmt(x.g.v)}</td><td>${unitOf(x.k)}</td><td>${M[x.k]?rangeTxt(M[x.k].t):'below 150'}</td><td>${M[x.k]?`<span class="scdi">${scdiOf(x.k,x.g.v).toFixed(2)}</span>`:'—'}</td></tr>`).join('')}</tbody></table></div></div>`;}
 document.addEventListener('click',e=>{const f=e.target.closest('[data-inf]');if(f){state.inf=f.dataset.inf;render();}});
 
-const TITLES={dashboard:['Dashboard','Overview of patients and reports · illustrative data'],patients:['Patients','Open a patient to see the Burak analysis'],analysis:['Clinical Data Intake & Baseline','View detailed clinical analysis and patient reports'],ingest:['Data ingestion','Lab payloads'],settings:['Settings','Reference ranges and tests by age group'],reports:['Clinical reports','Generated patient reports'],pop:['Population health','Results added up by district and age group']};
+/* ======================= POLISH: breathing room + patients ======================= */
+document.head.insertAdjacentHTML('beforeend',`<style>
+.content{gap:20px}
+.cards4{gap:14px}.cards4 .card{padding:16px 18px}
+.prompts{padding:12px 16px;gap:8px}.prompts .a{padding:9px 14px;line-height:1.5}
+.mp-top{padding:14px 18px;gap:14px}
+.lineins{gap:28px;padding:20px 22px;grid-template-columns:210px minmax(0,1fr)}
+.lineins .scbox{padding:20px 12px;align-self:start}
+.lineins h4{margin-bottom:10px}
+.lineins ul{gap:9px;line-height:1.55;font-size:13.5px}
+.mt th{padding:12px 14px}.mt td{padding:15px 14px}
+.mt .mk{font-size:13.5px}
+.ctabs{padding:14px 16px;gap:8px}
+.nt{padding:12px 18px}
+.sent{padding-top:44px}.srows{gap:12px}.srow{padding:12px 16px}
+.coh{padding:18px 20px}.chk{gap:5px;margin-top:10px}
+.hs{margin-top:18px;padding:30px 16px 20px}
+.rf{display:flex;gap:8px;flex-wrap:wrap}
+.rf button{all:unset;cursor:pointer;border-radius:999px;padding:7px 14px;font-weight:700;font-size:12.5px;border:1.5px solid var(--line);background:var(--card);display:inline-flex;gap:8px;align-items:center}
+.rf button i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.rf button b{font-variant-numeric:tabular-nums}
+.rf button[aria-pressed="true"]{color:#fff}
+.rf button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.pt td{padding:14px 12px;vertical-align:middle}
+.pt .who{min-width:220px}.pt .who b{font-size:14px}.pt .who .dx{font-size:12px;color:var(--muted);white-space:normal;max-width:240px;margin-top:2px}
+.sdots{display:flex;gap:5px}.sdots i{width:12px;height:12px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.08)}
+.psys{display:flex;gap:3px;height:26px;align-items:flex-end;width:120px}.psys span{flex:1;border-radius:2px 2px 0 0;min-height:3px}
+.riskpill{display:inline-block;color:#fff;font-weight:800;font-size:11px;letter-spacing:.05em;padding:5px 11px;border-radius:999px;min-width:70px;text-align:center}
+.riskpill small{display:block;font-size:10px;font-weight:600;opacity:.9;letter-spacing:0}
+.tc b{font-size:12.5px}.tc div{font-size:11.5px;color:var(--muted)}
+.hb{display:flex;align-items:center;gap:8px}.hb b{font-variant-numeric:tabular-nums}
+.plegend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);padding:10px 16px;border-top:1px solid #eef3f4}
+.plegend span{display:inline-flex;gap:6px;align-items:center}.plegend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+</style>`);
+function renderPatients(){const q=state.plist.toLowerCase(),rf=state.rf||'All';const A=ALL();
+  const list=A.filter(x=>(state.band==='All'||bandOf(x.p.age)===state.band)&&(rf==='All'||x.sm.lvl===rf)&&(!q||x.p.id.toLowerCase().includes(q)||x.p.dist.toLowerCase().includes(q)||x.p.note.toLowerCase().includes(q))).sort((a,b)=>b.sm.sc-a.sm.sc);
+  const cnt=l=>A.filter(x=>x.sm.lvl===l).length;
+  return `<div class="ahead" style="align-items:center"><div class="rf" role="group" aria-label="Clinical risk filter">${['All','Critical','High','Moderate','Low'].map(l=>`<button data-rf="${l}" aria-pressed="${rf===l}" style="${rf===l?`background:${l==='All'?'#13282b':RCOL[l]};border-color:${l==='All'?'#13282b':RCOL[l]}`:''}">${l!=='All'?`<i style="background:${RCOL[l]}"></i>`:''}${l} <b>${l==='All'?A.length:cnt(l)}</b></button>`).join('')}</div>
+   <input class="sel grow" id="pq" placeholder="Search by ID, district or finding" value="${esc(state.plist)}" aria-label="Search patients" style="max-width:340px;margin-left:auto">
+   <select class="sel" id="pb" aria-label="Age group">${['All','18–39','40–64','65–75'].map(o=>`<option ${state.band===o?'selected':''} value="${o}">${o==='All'?'All ages':'Age '+o}</option>`).join('')}</select></div>
+  <div class="card" style="padding:0"><div class="mp-top"><b>PATIENT LIST</b><span class="small">${list.length} of ${P.length} patients · highest clinical risk first</span></div>
+  <div class="tablewrap"><table class="pt"><thead><tr><th>Patient</th><th>Age / Sex</th><th>District</th><th>Body systems</th><th>Sentinels</th><th>Top disease cohort</th><th>HbA1c</th><th>Reports</th><th>Clinical risk</th></tr></thead><tbody>
+  ${list.map(x=>{const sys=sysStats(x.p,x.ri);const mx=Math.max(...sys.map(s=>s.tot),1);const top=[...x.sm.C].sort((a,b)=>b.pct-a.pct)[0];
+    const a1=x.p.rep.map(r=>r.v.A1C).filter(v=>v!=null);const a1g=get(x.p,x.ri,'A1C');
+    return `<tr class="rowlink" tabindex="0" data-open="${x.i}"><td class="who"><b>${x.p.id}</b><div class="dx">${esc(x.p.note)}</div></td><td>${x.p.age} / ${x.p.sex}</td><td>${x.p.dist}</td>
+     <td><div class="psys" title="Out-of-range markers by body system">${sys.map(s=>`<span title="${s.n}: ${s.fl} out of range" style="height:${s.fl?Math.max(14,s.fl/mx*100):8}%;background:${s.fl?LINEC[s.c]:'#e5ecee'}"></span>`).join('')}</div></td>
+     <td><div class="sdots">${x.sm.S.map(s=>`<i title="${s.s.n.replace(' SENTINEL','')}: ${SENTC[s.o.state][1]}" style="background:${SENTC[s.o.state][0]}"></i>`).join('')}</div></td>
+     <td class="tc">${top&&top.pct>=50?`<b>${scase(top.c.n)}</b><div>${top.pct}% match</div>`:'<span class="small">None at 50% or above</span>'}</td>
+     <td><div class="hb"><b style="color:${a1g.s==='ok'?'#13282b':a1g.s==='md'?'#a16207':'#b91c1c'}">${fmt(a1g.v)}%</b>${spark(a1)}</div></td>
+     <td>${x.p.rep.length}<div class="small">${x.p.rep.at(-1).d}</div></td>
+     <td><span class="riskpill" style="background:${RCOL[x.sm.lvl]}">${x.sm.lvl.toUpperCase()}<small>Score ${x.sm.sc}</small></span></td></tr>`;}).join('')||'<tr><td colspan="9" class="small">No patients match these filters.</td></tr>'}
+  </tbody></table></div>
+  <div class="plegend"><span>Body systems: one bar per line (sugar, inflammation, liver, cardiac, kidney, CBC, nutrient, thyroid); taller = more markers out of range</span><span>Sentinels:</span>${Object.values(SENTC).map(v=>`<span><i style="background:${v[0]}"></i>${v[1]}</span>`).join('')}</div></div>`;}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-rf]');if(b){state.rf=b.dataset.rf;render();}});
+
+/* ======================= MARKER PROFILE v3: big table + detail pop-ups ======================= */
+const MEV={GLU:['ALAKL'],A1C:['ALAKL','ALBAR','SROUR'],HSCRP:['GHANIM'],PLT:['ELHAG'],AST:['ELHAG'],ALT:['ELHAG'],ALB:['ELHAG'],TC:['TOOR'],HDL:['FARHAN'],LDL:['TOOR'],TG:['BADER','FARHAN'],APOB:['TOOR'],CREA:['BADER','ARSHAD'],EGFR:['BADER','ARSHAD'],BMI:['ALIYU','FARHAN'],SBP:['FARHAN'],DBP:['FARHAN']};
+const LEV={SUGAR:['ALAKL','ALBAR','BADER','MESLEH'],FIRE:['GHANIM'],LIVER:['ELHAG','ARSHAD'],CARDIAC:['TOOR','MESLEH','FARHAN'],KIDNEY:['BADER','ARSHAD'],VITALS:['ALIYU','FARHAN']};
+const EVUSE=Object.fromEntries(EVLIB.map(([id,w,s])=>[id,[w,s]]));
+document.head.insertAdjacentHTML('beforeend',`<style>
+.mp3 .mp-top{padding:16px 20px;border-bottom:1px solid #eef3f4}
+.mp3 .ctabs{border-top:0;border-bottom:1px solid var(--line);padding:14px 20px;gap:10px;background:#fbfdfd}
+.mp3 .ctab{padding:11px 8px;font-size:12.5px;border-radius:8px}.mp3 .ctab small{font-size:10px;margin-top:2px}
+.lstrip{display:flex;align-items:center;gap:18px;padding:16px 20px;border-bottom:1px solid #eef3f4;flex-wrap:wrap}
+.lstrip .scbox{display:flex;align-items:center;gap:12px;border-radius:10px;padding:10px 16px;border:1.5px solid;text-align:left}
+.lstrip .scbox b{font-size:26px;font-weight:800;line-height:1}
+.lstrip .scbox span{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;display:block}
+.lstrip .facts{display:flex;gap:8px;flex-wrap:wrap;flex:1;min-width:0}
+.lstrip .facts span{background:#f2f7f8;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:600;color:#13282b}
+.lstrip .facts span.r{background:#fef2f2;color:#b91c1c}.lstrip .facts span.a{background:#fffbeb;color:#92400e}
+.infobtn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#0f766e,#0e7490);padding:10px 16px;border-radius:9px;box-shadow:0 2px 8px rgba(14,116,144,.25)}
+.infobtn:hover{filter:brightness(1.08)}.infobtn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.mp3 .mt{font-size:14.5px}.mp3 .mt th{padding:13px 16px;font-size:11.5px}.mp3 .mt td{padding:18px 16px}
+.mp3 .mt .mk{font-size:15px}.mp3 .mt .small{font-size:12.5px}
+.mp3 .gwrap,.mp3 .gauge{width:230px}.mp3 .gauge{height:12px;border-radius:6px}.mp3 .gwrap i{height:20px}
+.mp3 .dv{font-size:16px;min-width:76px;padding:7px 12px}
+.mp3 .mrow{cursor:pointer;transition:background .12s}.mp3 .mrow:hover td{background:#f3fafa}
+.mp3 .mrow:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
+.mp3 .more{color:#0e7490;font-weight:700;font-size:12.5px;white-space:nowrap}
+.mp3 .evdot{display:inline-block;margin-left:8px;font-size:10px;font-weight:700;color:#0f766e;background:#ecfdf5;border-radius:999px;padding:2px 8px;vertical-align:middle}
+.mp3 .foot{padding:12px 20px;font-size:12px;color:var(--muted);border-top:1px solid #eef3f4}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.dlg{position:fixed;inset:0;background:rgba(10,30,33,.5);display:flex;justify-content:flex-end;z-index:60}
+.dlg[hidden]{display:none}
+.dpanel{background:var(--card);width:min(640px,100%);height:100%;overflow-y:auto;box-shadow:-20px 0 60px rgba(0,0,0,.25);display:flex;flex-direction:column;animation:slin .2s ease-out}
+@keyframes slin{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.dhead{padding:22px 26px 20px;color:#fff;position:sticky;top:0;z-index:1}
+.dhead .x{all:unset;cursor:pointer;position:absolute;top:16px;right:18px;font-size:22px;line-height:1;width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:rgba(255,255,255,.15)}
+.dhead .x:focus-visible{outline:2px solid #fff}
+.dhead .eb2{font-size:11px;letter-spacing:.1em;font-weight:700;opacity:.85}
+.dhead h2{margin:4px 0 2px;font-size:24px}.dhead .sub{opacity:.9;font-size:13px}
+.dhead .big{display:flex;gap:26px;margin-top:16px;flex-wrap:wrap}.dhead .big div{display:flex;flex-direction:column}
+.dhead .big b{font-size:30px;font-weight:800;line-height:1.05}.dhead .big span{font-size:11px;opacity:.85;letter-spacing:.05em;text-transform:uppercase}
+.dbody{padding:22px 26px 30px;display:flex;flex-direction:column;gap:24px}
+.dsec h3{margin:0 0 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#13282b;display:flex;align-items:center;gap:8px}
+.dsec h3:after{content:'';flex:1;height:1px;background:#e6eef0}
+.tiers{display:flex;flex-direction:column;gap:6px}
+.tiers div{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;font-size:13px;border:1px solid #eef3f4}
+.tiers div.on{border:2px solid #13282b;font-weight:700}
+.tiers i{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:10px;vertical-align:-1px}
+.bgauge{position:relative;padding:8px 0 22px}.bgauge .gauge{width:100%!important;height:16px;border-radius:8px}
+.bgauge .gwrap{width:100%!important}.bgauge .gwrap i{height:26px;width:6px}
+.dpoints{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.55}
+.evc{border:1px solid #d1ece6;background:linear-gradient(180deg,#f6fcfa,#fff);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.evc .who{font-size:11px;font-weight:700;color:#0f766e;letter-spacing:.04em;text-transform:uppercase}
+.evc .t{font-weight:700;font-size:14px;color:#13282b}
+.evc .f{font-size:13.5px;line-height:1.5;color:#334b4f;border-left:3px solid #5eead4;padding-left:10px}
+.evc .u{font-size:12px;color:var(--muted)}.evc .u b{color:#13282b}
+.evlist{display:flex;flex-direction:column;gap:10px}
+.dnote{font-size:12px;color:var(--muted);line-height:1.5}
+.dlinks{display:flex;gap:8px;flex-wrap:wrap}.dlinks span{border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:600;border:1px solid #e2eaec}
+.dsec .ch{width:100%;height:auto}.dsec .ch .ax{font-size:17px}.dsec .ch .lv{font-size:20px}.dsec .ch .pt{r:6}.dsec .ch .ln{stroke-width:3}
+@media (max-width:820px){.mp3 .gwrap,.mp3 .gauge{width:140px}}
+</style>`);
+document.body.insertAdjacentHTML('beforeend','<div class="dlg" id="dlg" hidden role="dialog" aria-modal="true" aria-labelledby="dlgT"><div class="dpanel" id="dpanel"></div></div>');
+let dlgRet=null;
+function openDlg(html){const d=$('dlg');dlgRet=document.activeElement;$('dpanel').innerHTML=html;d.hidden=false;$('dpanel').scrollTop=0;setTimeout(()=>d.querySelector('.x')?.focus(),0);}
+function closeDlg(){const d=$('dlg');if(d.hidden)return;d.hidden=true;dlgRet?.focus?.();}
+$('dlg').addEventListener('click',e=>{if(e.target.id==='dlg'||e.target.closest('.x'))closeDlg();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDlg();
+  if(e.key==='Tab'&&!$('dlg').hidden){const f=[...$('dpanel').querySelectorAll('button,[tabindex="0"]')];if(!f.length)return;const a=f[0],z=f.at(-1);
+    if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus();}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus();}}
+  if((e.key==='Enter'||e.key===' ')&&e.target.closest?.('tr[data-mk]')){e.preventDefault();markerDlg(e.target.closest('tr[data-mk]').dataset.mk);}});
+const HCOL={ok:'linear-gradient(135deg,#0f766e,#0e7490)',md:'linear-gradient(135deg,#b45309,#d97706)',hi:'linear-gradient(135deg,#b91c1c,#ea580c)',lo:'linear-gradient(135deg,#1d4ed8,#0e7490)',ac:'linear-gradient(135deg,#9a3412,#dc2626)'};
+const evCards=ids=>`<div class="evlist">${ids.map(id=>{const e=EV[id],u=EVUSE[id];return `<div class="evc"><span class="who">${esc(e.a)}</span><span class="t">${esc(e.t)}</span><span class="f">${esc(e.f)}.</span>${u?`<span class="u"><b>In Burak:</b> ${esc(u[0])} · ${esc(u[1])}</span>`:''}</div>`;}).join('')}</div>
+  <p class="dnote" style="margin:8px 0 0">From posters at the QBRI Metabolic Organ Cross-Talk Symposium, mostly on Qatari cohorts. Most are cross-sectional and some are unpublished. Thresholds stay illustrative until clinical sign-off.</p>`;
+function linePoints(p,ri,sm,c){const keys=Object.keys(M).filter(k=>M[k].c===c);
+  const rows=keys.map(k=>({k,g:get(p,ri,k)})).filter(x=>x.g.v!=null);const fl=rows.filter(x=>flagged(x.g.s));const pts=[];
+  if(fl.length)pts.push(`<b>${fl.length} of ${rows.length}</b> marker${rows.length>1?'s':''} out of range: ${fl.map(x=>`${M[x.k].n} ${fmt(x.g.v)} ${M[x.k].u} (${x.g.lab.toLowerCase()})`).join(', ')}.`);else pts.push(rows.length>1?`All ${rows.length} markers in this line are within range.`:`The marker in this line is within range.`);
+  const moved=rows.map(x=>{const pv=prevOf(p,x.g.src??ri,x.k);return pv?{x,pv,d:(x.g.v-pv.v)/pv.v*100}:null;}).filter(y=>y&&Math.abs(y.d)>=5).sort((a,b)=>Math.abs(b.d)-Math.abs(a.d));
+  if(moved.length)pts.push(`Since the last screening: ${moved.slice(0,3).map(y=>`${M[y.x.k].n} ${y.d>0?'up':'down'} ${Math.abs(Math.round(y.d))}% (${fmt(y.pv.v)} → ${fmt(y.x.g.v)})`).join(', ')}.`);
+  const sens=sm.S.filter(s=>s.o.state!=='clear'&&s.o.state!=='inc'&&s.o.rs.some(r=>lineOf(r.k)===c));
+  sens.forEach(s=>pts.push(`<b>${scase(s.s.n.replace(' SENTINEL',''))} sentinel</b> ${s.o.state==='fire'?'detected':'on watch'}: ${s.o.met} of ${s.o.ev} marker${s.o.ev>1?'s':''} out of line.`));
+  const coh=sm.C.filter(x=>x.pct>=50&&(COHLINE[x.c.n]||[]).includes(c)).sort((a,b)=>b.pct-a.pct);
+  if(coh.length)pts.push(`Related disease cohort${coh.length>1?'s':''}: ${coh.map(x=>`<b>${scase(x.c.n)}</b> ${x.pct}% match`).join(', ')}.`);
+  const hs=sm.H.filter(h=>(h.o.c==='bad'||h.o.c==='warn')&&h.h.ch.some(k=>lineOf(k)===c));
+  if(hs.length)pts.push(`Linked to other systems: ${hs.map(h=>`<b>${h.h.n}</b>`).join(', ')}.`);
+  return {pts,fl,rows,sens,coh,hs};}
+function lineDlg(){const p=P[state.pi],ri=atOf(state.pi),sm=summary(p,ri),c=state.cat,ls=lineScdi(p,ri,c),L=linePoints(p,ri,sm,c);
+  const ev=[...new Set([...(LEV[c]||[]),...L.sens.flatMap(s=>SENTEV[s.s.n]||[]),...L.hs.flatMap(h=>HSEV[h.h.n]||[])])];
+  const sc=ls==null?'ok':ls.lvl;
+  openDlg(`<div class="dhead" style="background:${HCOL[sc]}"><button class="x" aria-label="Close">×</button><span class="eb2">LINE INSIGHTS · ${p.id} · REPORT ${ri+1}</span><h2 id="dlgT">${catName(c)} line</h2><div class="sub">${p.rep[ri].d}</div>
+   <div class="big"><div><b>${ls==null?'—':ls.v.toFixed(2)}</b><span>Line SCDI · ${ls==null?'No data':ls.lab}</span></div><div><b>${L.fl.length}/${L.rows.length}</b><span>Out of range</span></div><div><b>${L.sens.length}</b><span>Sentinels active</span></div><div><b>${L.coh.length}</b><span>Related cohorts</span></div></div></div>
+   <div class="dbody"><div class="dsec"><h3>What this line shows</h3><ul class="dpoints">${L.pts.map(t=>`<li>${t}</li>`).join('')}</ul></div>
+   ${ev.length?`<div class="dsec"><h3>Qatar research behind this line</h3>${evCards(ev)}</div>`:'<div class="dsec"><h3>Qatar research</h3><p class="dnote">No Qatar poster in the current library maps to this line yet.</p></div>'}
+   <p class="dnote">Line SCDI = 1 + the average distance of the out-of-range markers past their limits. 1.00 means every marker in this line is in range.</p></div>`);}
+function markerDlg(k){const p=P[state.pi],ri=atOf(state.pi),sm=summary(p,ri),m=M[k],g=get(p,ri,k);if(g.v==null)return;
+  const sc=scdiOf(k,g.v),pv=prevOf(p,g.src??ri,k),d=pv?g.v-pv.v:null;let lo=null;
+  const tiers=m.t.map((x,i)=>{const a=i?m.t[i-1][0]:null,b=x[0];const on=g.v<b&&(a==null||g.v>=a);lo=b;
+    const r=a==null?`below ${fmt(+(+b).toFixed(2))}`:b===I?`${fmt(+(+a).toFixed(2))} or above`:`${fmt(+(+a).toFixed(2))} – ${fmt(+(+b).toFixed(2))}`;
+    return `<div class="${on?'on':''}"><span><i style="background:${SEVC[x[2]]}"></i>${scase(x[1])}</span><span>${r} ${m.u}${on?' · <b>this result</b>':''}</span></div>`;}).join('');
+  const sens=sm.S.filter(s=>s.o.rs.some(r=>r.k===k)).map(s=>`<span style="background:${SENTC[s.o.state][0]}22;border-color:${SENTC[s.o.state][0]}">${scase(s.s.n.replace(' SENTINEL',''))} sentinel · ${SENTC[s.o.state][1]}</span>`);
+  const coh=sm.C.filter(x=>x.pct>=50&&(COHLINE[x.c.n]||[]).includes(m.c)).map(x=>`<span>${scase(x.c.n)} · ${x.pct}%</span>`);
+  const nRep=p.rep.slice(0,ri+1).filter(r=>r.v[k]!=null).length;
+  openDlg(`<div class="dhead" style="background:${HCOL[g.s]||HCOL.ok}"><button class="x" aria-label="Close">×</button><span class="eb2">MARKER DETAIL · ${p.id} · ${catName(m.c).toUpperCase()} LINE</span><h2 id="dlgT">${m.full}</h2><div class="sub">${m.n} · reference ${rangeTxt(m.t)} ${m.u}</div>
+   <div class="big"><div><b>${fmt(g.v)} <small style="font-size:14px">${m.u}</small></b><span>${g.lab}</span></div><div><b>${sc.toFixed(2)}</b><span>SCDI</span></div><div><b>${pv?`${Math.abs(d)<1e-9?'→':d>0?'↑':'↓'} ${fmt(Math.abs(d))}`:'—'}</b><span>${pv?'Change since '+pv.d.slice(0,4):'First result'}</span></div></div></div>
+   <div class="dbody">
+    <div class="dsec"><h3>Where it sits</h3><div class="bgauge">${gauge(m.t,g.v)}</div><div class="tiers">${tiers}</div>${g.st==='carried'?`<p class="dnote" style="margin:8px 0 0">Not retested at this visit: value carried from ${p.rep[g.src].d}.</p>`:''}</div>
+    ${nRep>1?`<div class="dsec"><h3>Trend across screenings</h3>${chart(p,ri,k)}</div>`:''}
+    ${sens.length||coh.length?`<div class="dsec"><h3>Where Burak uses this marker</h3><div class="dlinks">${sens.join('')}${coh.join('')}</div></div>`:''}
+    ${MEV[k]?`<div class="dsec"><h3>Qatar research</h3>${evCards(MEV[k])}</div>`:''}
+    <p class="dnote">SCDI = value ÷ the nearest reference limit (1.00 = at the limit). Decision support only: Burak flags results for review and does not diagnose.</p></div>`);}
+function lineInsight(p,ri,sm,c){const ls=lineScdi(p,ri,c),L=linePoints(p,ri,sm,c),sc=ls==null?'ok':ls.lvl;
+  const facts=[`<span class="${L.fl.length?'r':''}">${L.fl.length} of ${L.rows.length} out of range</span>`,...L.sens.map(s=>`<span class="${s.o.state==='fire'?'r':'a'}">${scase(s.s.n.replace(' SENTINEL',''))} sentinel ${s.o.state==='fire'?'detected':'on watch'}</span>`),L.coh.length?`<span>${L.coh.length} related cohort${L.coh.length>1?'s':''}</span>`:'',L.hs.length?`<span>${L.hs.length} system link${L.hs.length>1?'s':''}</span>`:''].join('');
+  return `<div class="lstrip"><div class="scbox ${sc}"><b>${ls==null?'—':ls.v.toFixed(2)}</b><div><span>${catName(c)} line SCDI</span><span>${ls==null?'No data':ls.lab}</span></div></div>
+   <div class="facts">${facts}</div><button class="infobtn" data-linedlg="1">ⓘ Line insights &amp; Qatar research</button></div>`;}
+function tMarker(p,ri,sm){
+  const avail=CATS.filter(c=>Object.keys(M).some(k=>M[k].c===c[0]&&get(p,ri,k).v!=null));
+  if(!state.cat||!avail.some(c=>c[0]===state.cat))state.cat=(avail.find(c=>c[0]!=='VITALS'&&sm.flg.some(x=>M[x.k].c===c[0]))||avail[0])[0];
+  const keys=Object.keys(M).filter(k=>M[k].c===state.cat);const rows=keys.map(k=>({k,g:get(p,ri,k)}));
+  const fl=rows.filter(x=>x.g.v!=null&&flagged(x.g.s)),okr=rows.filter(x=>x.g.v!=null&&!flagged(x.g.s)),nt=rows.filter(x=>x.g.v==null);
+  const show=[...fl,...(state.only?[]:okr)];
+  return `<div class="card mp3" style="padding:0"><div class="mp-top"><b>MARKER PROFILE</b><span class="small">Report ${ri+1} · ${p.rep[ri].d} · click any marker for details and Qatar research</span><span style="margin-left:auto" class="seg-ctl" role="group" aria-label="Rows"><button data-only="0" aria-pressed="${!state.only}">All markers</button><button data-only="1" aria-pressed="${state.only}">Out of range only</button></span></div>
+   <div class="ctabs" role="group" aria-label="Marker category">${avail.map(c=>{const n=Object.keys(M).filter(k=>M[k].c===c[0]&&flagged(get(p,ri,k).s)).length;return `<button class="ctab" data-cat="${c[0]}" aria-pressed="${c[0]===state.cat}">${c[1].toUpperCase()}<small>${n?n+' flagged':'all in range'}</small></button>`;}).join('')}</div>
+   ${lineInsight(p,ri,sm,state.cat)}
+   <div class="tablewrap"><table class="mt"><thead><tr><th>S.No</th><th>Marker</th><th>Reference range</th><th>Where it sits</th><th>SCDI</th><th>Class</th><th>Result</th><th>Last time</th><th><span class="sr-only">Details</span></th></tr></thead><tbody>
+   ${show.map((x,i)=>{const m=M[x.k],g=x.g,rc=g.s==='ok'?'okr':g.s==='md'?'md':g.s==='lo'?'lo':'hi',sc=scdiOf(x.k,g.v),c=clsOf(g.s),pv=prevOf(p,g.src??ri,x.k),d=pv?g.v-pv.v:null;
+     return `<tr class="mrow ${rc}" data-mk="${x.k}" tabindex="0" aria-label="${m.full} details"><td>${String(i+1).padStart(2,'0')}</td><td><span class="mk"><i></i>${m.n}</span><div class="small">${m.full}${MEV[x.k]?'<span class="evdot" title="Qatar research available">Qatar</span>':''}</div></td><td class="rng">${rangeTxt(m.t)} <span class="small">${m.u}</span></td><td>${gauge(m.t,g.v)}</td>
+      <td><span class="scdi">${sc.toFixed(2)}</span></td><td><span class="cl ${c}">${clsTxt(c)}</span></td>
+      <td><span class="dv ${g.s==='ok'?'ok':g.s}">${fmt(g.v)}<small>${word(g.s)}</small></span>${g.st==='carried'?`<div class="small" style="margin-top:3px">from ${p.rep[g.src].d.slice(0,4)}</div>`:''}</td>
+      <td class="dlt">${pv?`<b>${Math.abs(d)<1e-9?'→':d>0?'↑':'↓'} ${fmt(pv.v)}</b> in ${pv.d.slice(0,4)}`:'First result'}</td><td class="more">Details ›</td></tr>`;}).join('')||'<tr><td colspan="9" class="small">All markers in this line are within range.</td></tr>'}
+   </tbody></table></div>
+   ${nt.length?`<div class="nt">Not tested at this visit: ${nt.map(x=>M[x.k].n).join(', ')}</div>`:''}
+   <div class="foot">SCDI = value ÷ the nearest reference limit (1.00 = at the limit). Line SCDI shows how far the out-of-range markers in this line have moved past their limits; 1.00 means every marker is in range.</div></div>`;}
+document.addEventListener('click',e=>{const r=e.target.closest('tr[data-mk]');if(r){markerDlg(r.dataset.mk);return;}if(e.target.closest('[data-linedlg]'))lineDlg();});
+
+/* ======================= MARKER PROFILE v4: calm layout, categories below, short insights ======================= */
+document.head.insertAdjacentHTML('beforeend',`<style>
+.mp4 .mp-top{padding:14px 20px}
+.mp4 .seg-ctl button{font-size:11.5px;padding:4px 10px}
+.lmini{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid #eef3f4;font-size:12.5px;color:#334b4f;flex-wrap:wrap}
+.lmini .scbox{display:inline-flex;align-items:baseline;gap:8px;border:1.5px solid;border-radius:8px;padding:5px 12px}
+.lmini .scbox b{font-size:17px;font-weight:800}
+.lmini .scbox span{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.lmini .say{flex:1;min-width:220px;line-height:1.5}
+.lmini .lk{all:unset;cursor:pointer;font-size:12px;font-weight:700;color:#0e7490;padding:6px 10px;border-radius:7px;border:1px solid #cfe6ea;white-space:nowrap}
+.lmini .lk:hover{background:#eef8fa}.lmini .lk:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.mp4 .mt td{padding:16px 16px}
+.mp4 .mt .chev{color:#9ab3b6;font-size:18px;font-weight:700;text-align:right;padding-right:20px}
+.mp4 .mrow:hover .chev{color:#0e7490}
+.mp4 .ctabs{border-top:1px solid var(--line);border-bottom:0;background:#fbfdfd;padding:14px 20px;gap:8px}
+.mp4 .ctab{padding:9px 6px;font-size:11.5px}
+.mp4 .foot{font-size:11.5px}
+.kv{display:flex;flex-direction:column;border:1px solid #e6eef0;border-radius:10px;overflow:hidden}
+.kv div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px;padding:10px 14px;font-size:13px;line-height:1.5;border-top:1px solid #eef3f4}
+.kv div:first-child{border-top:0}.kv dt,.kv .k{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#5f7a7e;padding-top:2px}
+.dhead.sm{padding:18px 24px 16px}.dhead.sm h2{font-size:20px}.dhead.sm .big{gap:22px;margin-top:12px}.dhead.sm .big b{font-size:22px}.dhead.sm .big span{font-size:10px}
+.evm{display:flex;flex-direction:column;gap:8px}
+.evm div{border-left:3px solid #5eead4;background:#f6fcfa;border-radius:0 8px 8px 0;padding:9px 12px;font-size:12.5px;line-height:1.5;color:#334b4f}
+.evm b{display:block;font-size:11px;color:#0f766e;letter-spacing:.03em}
+</style>`);
+const evMini=ids=>`<div class="evm">${ids.map(id=>`<div title="${esc(EV[id].t)}"><b>${esc(EV[id].a)}</b>${esc(EV[id].f)}.</div>`).join('')}</div><p class="dnote" style="margin:8px 0 0">QBRI symposium posters, mostly Qatari cohorts. Thresholds illustrative until clinical sign-off.</p>`;
+function lineSay(p,ri,sm,c){const L=linePoints(p,ri,sm,c);
+  if(!L.rows.length)return {L,txt:'No results in this line at this visit.'};
+  if(!L.fl.length)return {L,txt:`All ${L.rows.length>1?L.rows.length+' markers':'markers'} in range.`};
+  const up=L.fl.filter(x=>{const pv=prevOf(p,x.g.src??ri,x.k);return pv&&(x.g.s==='lo'?x.g.v<pv.v:x.g.v>pv.v);}).length;
+  const act=L.sens.filter(s=>s.o.state==='fire').length;
+  return {L,txt:`<b>${L.fl.length} of ${L.rows.length}</b> out of range${up?` · ${up===L.fl.length?(up>1?'all ':''):up+' '}moving the wrong way`:''}${act?` · <b>${act} sentinel${act>1?'s':''} detected</b>`:''}.`};}
+function lineInsight(p,ri,sm,c){const ls=lineScdi(p,ri,c),sc=ls==null?'ok':ls.lvl,{txt}=lineSay(p,ri,sm,c);
+  return `<div class="lmini"><span class="scbox ${sc}"><b>${ls==null?'—':ls.v.toFixed(2)}</b><span>${catName(c)} SCDI · ${ls==null?'No data':ls.lab}</span></span><span class="say">${txt}</span><button class="lk" data-linedlg="1">Insights &amp; Qatar research ›</button></div>`;}
+function lineDlg(){const p=P[state.pi],ri=atOf(state.pi),sm=summary(p,ri),c=state.cat,ls=lineScdi(p,ri,c),L=linePoints(p,ri,sm,c);
+  const ev=[...new Set([...(LEV[c]||[]),...L.sens.flatMap(s=>SENTEV[s.s.n]||[]),...L.hs.flatMap(h=>HSEV[h.h.n]||[])])];const sc=ls==null?'ok':ls.lvl;
+  const moved=L.rows.map(x=>{const pv=prevOf(p,x.g.src??ri,x.k);return pv?{x,pv,d:(x.g.v-pv.v)/pv.v*100}:null;}).filter(y=>y&&Math.abs(y.d)>=5);
+  const rows=[
+   ['Out of range',L.fl.length?L.fl.map(x=>`<b>${M[x.k].n}</b> ${fmt(x.g.v)} (${x.g.lab.toLowerCase()})`).join(' · '):'None'],
+   ['Change',moved.length?moved.slice(0,3).map(y=>`${M[y.x.k].n} ${y.d>0?'↑':'↓'} ${Math.abs(Math.round(y.d))}%`).join(' · ')+` since ${moved[0].pv.d.slice(0,4)}`:'No change of 5% or more'],
+   ['Sentinels',L.sens.length?L.sens.map(s=>`${scase(s.s.n.replace(' SENTINEL',''))} ${s.o.state==='fire'?'<b>detected</b>':'on watch'}`).join(' · '):'None active'],
+   ['Cohorts',L.coh.length?L.coh.map(x=>`${scase(x.c.n)} ${x.pct}%`).join(' · '):'None at 50% or above'],
+   ['Links',L.hs.length?L.hs.map(h=>scase(h.h.n).replace(/→ (\w)/,(m,a)=>'→ '+a.toUpperCase())).join(' · '):'None']];
+  openDlg(`<div class="dhead sm" style="background:${HCOL[sc]}"><button class="x" aria-label="Close">×</button><span class="eb2">${p.id} · REPORT ${ri+1} · ${p.rep[ri].d}</span><h2 id="dlgT">${catName(c)} line</h2>
+   <div class="big"><div><b>${ls==null?'—':ls.v.toFixed(2)}</b><span>SCDI · ${ls==null?'No data':ls.lab}</span></div><div><b>${L.fl.length}/${L.rows.length}</b><span>Out of range</span></div></div></div>
+   <div class="dbody"><div class="dsec"><h3>At a glance</h3><div class="kv">${rows.map(r=>`<div><span class="k">${r[0]}</span><span>${r[1]}</span></div>`).join('')}</div></div>
+   <div class="dsec"><h3>Qatar research</h3>${ev.length?evMini(ev):'<p class="dnote">No Qatar poster maps to this line yet.</p>'}</div>
+   <p class="dnote">SCDI 1.00 = every marker in range. Higher = further past the limits.</p></div>`);}
+function tMarker(p,ri,sm){
+  const avail=CATS.filter(c=>Object.keys(M).some(k=>M[k].c===c[0]&&get(p,ri,k).v!=null));
+  if(!state.cat||!avail.some(c=>c[0]===state.cat))state.cat=(avail.find(c=>c[0]!=='VITALS'&&sm.flg.some(x=>M[x.k].c===c[0]))||avail[0])[0];
+  const keys=Object.keys(M).filter(k=>M[k].c===state.cat);const rows=keys.map(k=>({k,g:get(p,ri,k)}));
+  const fl=rows.filter(x=>x.g.v!=null&&flagged(x.g.s)),okr=rows.filter(x=>x.g.v!=null&&!flagged(x.g.s)),nt=rows.filter(x=>x.g.v==null);
+  const show=[...fl,...(state.only?[]:okr)];
+  return `<div class="card mp3 mp4" style="padding:0"><div class="mp-top"><b>${catName(state.cat).toUpperCase()} MARKERS</b><span class="small">Report ${ri+1} · ${p.rep[ri].d}</span><span style="margin-left:auto" class="seg-ctl" role="group" aria-label="Rows"><button data-only="0" aria-pressed="${!state.only}">All</button><button data-only="1" aria-pressed="${state.only}">Out of range</button></span></div>
+   ${lineInsight(p,ri,sm,state.cat)}
+   <div class="tablewrap"><table class="mt"><thead><tr><th>S.No</th><th>Marker</th><th>Reference range</th><th>Where it sits</th><th>SCDI</th><th>Class</th><th>Result</th><th>Last time</th><th><span class="sr-only">Details</span></th></tr></thead><tbody>
+   ${show.map((x,i)=>{const m=M[x.k],g=x.g,rc=g.s==='ok'?'okr':g.s==='md'?'md':g.s==='lo'?'lo':'hi',sc=scdiOf(x.k,g.v),c=clsOf(g.s),pv=prevOf(p,g.src??ri,x.k),d=pv?g.v-pv.v:null;
+     return `<tr class="mrow ${rc}" data-mk="${x.k}" tabindex="0" aria-label="${m.full}: open details" title="Open details and Qatar research"><td>${String(i+1).padStart(2,'0')}</td><td><span class="mk"><i></i>${m.n}</span><div class="small">${m.full}</div></td><td class="rng">${rangeTxt(m.t)} <span class="small">${m.u}</span></td><td>${gauge(m.t,g.v)}</td>
+      <td><span class="scdi">${sc.toFixed(2)}</span></td><td><span class="cl ${c}">${clsTxt(c)}</span></td>
+      <td><span class="dv ${g.s==='ok'?'ok':g.s}">${fmt(g.v)}<small>${word(g.s)}</small></span>${g.st==='carried'?`<div class="small" style="margin-top:3px">from ${p.rep[g.src].d.slice(0,4)}</div>`:''}</td>
+      <td class="dlt">${pv?`<b>${Math.abs(d)<1e-9?'→':d>0?'↑':'↓'} ${fmt(pv.v)}</b> in ${pv.d.slice(0,4)}`:'First result'}</td><td class="chev" aria-hidden="true">›</td></tr>`;}).join('')||'<tr><td colspan="9" class="small">All markers in this line are within range.</td></tr>'}
+   </tbody></table></div>
+   ${nt.length?`<div class="nt">Not tested at this visit: ${nt.map(x=>M[x.k].n).join(', ')}</div>`:''}
+   <div class="ctabs" role="group" aria-label="Marker category">${avail.map(c=>{const n=Object.keys(M).filter(k=>M[k].c===c[0]&&flagged(get(p,ri,k).s)).length;return `<button class="ctab" data-cat="${c[0]}" aria-pressed="${c[0]===state.cat}">${c[1].toUpperCase()}<small>${n?n+' flagged':'&nbsp;'}</small></button>`;}).join('')}</div>
+   <div class="foot">Click a marker for its trend and Qatar research. SCDI = value ÷ nearest reference limit (1.00 = at the limit).</div></div>`;}
+
+const TITLES={dashboard:['Dashboard','Overview of patients and reports · illustrative data'],patients:['Patients','Open a patient to see the Burak analysis'],analysis:['Clinical Data Intake & Baseline','View detailed clinical analysis and patient reports'],ingest:['Data ingestion','Lab payloads'],settings:['Settings','Reference ranges and tests by age group'],reports:['Clinical reports','Generated patient reports'],pop:['Population health','Results added up by district and age group'],evidence:['Qatar evidence','Research behind the Burak rules in this workspace']};
 function render(){renderSide();const v=state.view;$('ttl').textContent=TITLES[v][0];$('sub').textContent=TITLES[v][1];
-  $('view').innerHTML=({dashboard:renderDashboard,patients:renderPatients,analysis:renderAnalysis,settings:renderSettings,ingest:renderIngest,reports:renderReports,pop:renderPop})[v]();}
+  $('view').innerHTML=({dashboard:renderDashboard,patients:renderPatients,analysis:renderAnalysis,settings:renderSettings,ingest:renderIngest,reports:renderReports,pop:renderPop,evidence:evidenceLib})[v]();}
 function openPatient(i,tab){state.pi=i;delete state.at[i];state.view='analysis';state.tab=tab||'marker';state.cat=null;state.vel=null;state.cohAll=false;render();window.scrollTo({top:0});}
 document.addEventListener('click',e=>{
   const n=e.target.closest('[data-nav]');if(n){state.view=n.dataset.nav;render();window.scrollTo({top:0});return;}
